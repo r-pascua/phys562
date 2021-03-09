@@ -648,7 +648,9 @@ class Simulator:
 
 
     def apply_source(self, source_func, source_loc, step, **source_params):
-        Hz = source_func(step, **source_params)
+        Ex, Ey, Hz = source_func(step, **source_params)
+        self.Ex[step][source_loc] += Ex
+        self.Ey[step][source_loc] += Ey
         self.Hzx[step][source_loc] += 0.5 * Hz
         self.Hzy[step][source_loc] += 0.5 * Hz
 
@@ -665,7 +667,7 @@ class Simulator:
         source_func: callable or str
             Function for applying a source term. Must have signature:
                 source_func(step, **source_params)
-            Must return Hz. Currently only supports time-dependent source.
+            Must return Ex, Ey, Hz. Currently only supports time-dependent source.
         source_loc: tuple of slice parameters
             Specifies the location of the source.
         source_params: dict
