@@ -387,7 +387,6 @@ class Simulator:
         scale_factor = self.relative_permittivity[1::2,1::2] / (
             self.relative_permeability * self.spatial_resolution
         )
-        print(scale_factor.shape)
         prefactors = np.zeros(self.Hz_mesh[0].shape, dtype=np.float)
         for i in range(prefactors.shape[0]):
             for j in range(prefactors.shape[1]):
@@ -572,8 +571,8 @@ class Simulator:
         self.Ntimes = Ntimes
         self.Ex = np.zeros((Ntimes,) + self.Ex_mesh[0].shape, dtype=float)
         self.Ey = np.zeros((Ntimes,) + self.Ey_mesh[0].shape, dtype=float)
-        self.Hzx = np.zeros((Ntimes,) + self.Hzx_mesh[0].shape, dtype=float)
-        self.Hzy = np.zeros((Ntimes,) + self.Hzy_mesh[0].shape, dtype=float)
+        self.Hzx = np.zeros((Ntimes,) + self.Hz_mesh[0].shape, dtype=float)
+        self.Hzy = np.zeros((Ntimes,) + self.Hz_mesh[0].shape, dtype=float)
 
 
     def _advance_Hzx(self, Hzx, Ey_right, Ey_left, H_prefac, curlE_prefac):
@@ -666,16 +665,13 @@ class Simulator:
 
 
     def apply_source(self, source_func, source_loc, step, **source_params):
-        time = step * self.time_res
-        Ex, Ey, Hz = source_func(time, self.time_res, **source_params)
-        self.Ex[step][source_loc] += Ex
-        self.Ey[step][source_loc] += Ey
+        Hz = source_func(step, **source_params)
         self.Hzx[step][source_loc] += 0.5 * Hz
         self.Hzy[step][source_loc] += 0.5 * Hz
 
 
     def simulate(
-        self, Ntimes=500, source_func="pulse", source_loc=None, source_params=None,
+        self, Ntimes=500, source_func="ricker", source_loc=None, source_params=None,
     ):
         """Run the FDTD simulation.
 
