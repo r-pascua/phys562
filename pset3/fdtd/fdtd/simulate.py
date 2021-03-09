@@ -602,6 +602,12 @@ class Simulator:
 
 
     def advance_fields(self, step, source_func, source_loc, **source_params):
+        self.advance_H(step)
+        self.apply_source(source_func, source_loc, step, **source_params)
+        self.advance_E(step)
+
+
+    def advance_H(self, step):
         for i in range(self.x_cells + 2 * self.pml_width + 1):
             in_left_pml = self.classifiers["left_pml"][i,0]
             in_right_pml = self.classifiers["right_pml"][i,0]
@@ -635,10 +641,22 @@ class Simulator:
                 self.Hzx[step,i,j] = self.Hzx[step-1,i,j] + dHzx
                 self.Hzy[step,i,j] = self.Hzy[step-1,i,j] + dHzy
 
-                # The source should only be applied to the magnetic field,
-                # since we're doing a TE_z-polarization simulation.
-                # FIXME: figure out the right way to do this...
-                self.apply_source(source_func, source_loc, step, **source_params)
+
+    def advance_E(self, step):
+        for i in range(self.x_cells + 2 * self.pml_width + 1):
+            in_left_pml = self.classifiers["left_pml"][i,0]
+            in_right_pml = self.classifiers["right_pml"][i,0]
+            at_right_edge = self.classifiers["right_edge"][i,0]
+            at_left_edge = self.classifiers["left_edge"][i,0]
+            for j in range(self.y_cells + 2 * self.pml_width + 1):
+                in_lower_pml = self.classifiers["lower_pml"][0,j]
+                in_upper_pml = self.classifiers["upper_pml"][0,j]
+                at_upper_edge = self.classifiers["upper_edge"][0,j]
+                at_lower_edge = self.classifiers["lower_edge"][0,j]
+
+                # There's nothing to do at these edges.
+                if at_upper_edge or at_right_edge:
+                    continue
 
                 # Advance the electric field.
                 # If we're at the lower edge, we can't calculate the curl for Ex.
