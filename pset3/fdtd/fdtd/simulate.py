@@ -226,210 +226,194 @@ class Simulator:
     @cached_property
     def Ex_prefac(self):
         # Exponential decay in upper/lower PML, unity otherwise.
-        upper_pml = self.classifiers["upper_pml"][:-1,:]
-        lower_pml = self.classifiers["lower_pml"][:-1,:]
-        upper_pml_edge = self.Ex_mesh[1,upper_pml].min()
+        upper_pml_edge = self.mesh[1,self.classifiers["upper_pml"]].min()
         scale_factor = 1 / self.relative_permittivity[1::2,::2]
         scale_factor *= self.spatial_resolution * self.courant_number * self.free_impedance
         conductivity = self.pml_conductivity[::2]
         prefactors = np.zeros(self.Ex_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(1, prefactors.shape[1]-1):
-                if upper_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -conductivity[j-upper_pml_edge] * scale_factor[i,j]
-                    )
-                elif lower_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -conductivity[::-1][j] * scale_factor[i,j]
-                    )
-                else:
-                    prefactors[i,j] = 1
+        for i, j in zip(self.Ex_mesh[0].flat, self.Ex_mesh[1].flat):
+            if j in (0, self.mesh.shape[2] - 1):
+                continue
+            if self.classifiers["upper_pml"][i,j-1]:
+                prefactors[i,j] = np.exp(
+                    -conductivity[j-upper_pml_edge-1] * scale_factor[i,j]
+                )
+            elif self.classifiers["lower_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -conductivity[::-1][j] * scale_factor[i,j]
+                )
+            else:
+                prefactors[i,j] = 1
         return prefactors
 
 
     @cached_property
     def Ey_prefac(self):
         # Exponential decay in left/right PML, unity otherwise.
-        left_pml = self.classifiers["left_pml"][:,:-1]
-        right_pml = self.classifiers["right_pml"][:,:-1]
-        right_pml_edge = self.Ey_mesh[0,right_pml].min()
+        right_pml_edge = self.mesh[0,self.classifiers["right_pml"]].min()
         scale_factor = 1 / self.relative_permittivity[::2,1::2]
         scale_factor *= self.spatial_resolution * self.courant_number * self.free_impedance
         conductivity = self.pml_conductivity[::2]
         prefactors = np.zeros(self.Ey_mesh[0].shape, dtype=np.float)
-        for i in range(1, prefactors.shape[0] - 1):
-            for j in range(prefactors.shape[1]):
-                if left_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -conductivity[::-1][i] * scale_factor[i,j]
-                    )
-                elif right_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -conductivity[i-right_pml_edge] * scale_factor[i,j]
-                    )
-                else:
-                    prefactors[i,j] = 1
+        for i, j in zip(self.Ey_mesh[0].flat, self.Ey_mesh[1].flat):
+            if i in (0, self.mesh.shape[1] - 1):
+                continue
+            if self.classifiers["left_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -conductivity[::-1][i] * scale_factor[i,j]
+                )
+            elif self.classifiers["right_pml"][i-1,j]:
+                prefactors[i,j] = np.exp(
+                    -conductivity[i-right_pml_edge-1] * scale_factor[i,j]
+                )
+            else:
+                prefactors[i,j] = 1
         return prefactors
 
 
     @cached_property
     def Hzx_prefac(self):
         # Exponential decay in left/right PML, unity otherwise
-        left_pml = self.classifiers["left_pml"][:-1,:-1]
-        right_pml = self.classifiers["right_pml"][:-1,:-1]
-        right_pml_edge = self.Hz_mesh[0,right_pml].min()
+        right_pml_edge = self.mesh[0,self.classifiers["right_pml"]].min()
         # Impedance match and scale by the time step.
         scale_factor = 1 / self.relative_permittivity[1::2,1::2]
         scale_factor *= self.courant_number * (
             self.spatial_resolution / self.free_impedance
         )
         prefactors = np.zeros(self.Hz_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(prefactors.shape[1]):
-                if left_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -self.magnetic_loss[::-1][i] * scale_factor[i,j]
-                    )
-                elif right_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -self.magnetic_loss[i-right_pml_edge] * scale_factor[i,j]
-                    )
-                else:
-                    prefactors[i,j] = 1
+        for i, j in zip(self.Hz_mesh[0].flat, self.Hz_mesh[1].flat):
+            if self.classifiers["left_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -self.magnetic_loss[::-1][i] * scale_factor[i,j]
+                )
+            elif self.classifiers["right_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -self.magnetic_loss[i-right_pml_edge] * scale_factor[i,j]
+                )
+            else:
+                prefactors[i,j] = 1
         return prefactors
 
 
     @cached_property
     def Hzy_prefac(self):
         # Exponential decay in lower/upper PML, unity otherwise
-        lower_pml = self.classifiers["lower_pml"][:-1,:-1]
-        upper_pml = self.classifiers["upper_pml"][:-1,:-1]
-        upper_pml_edge = self.Hz_mesh[1,upper_pml].min()
+        upper_pml_edge = self.mesh[1,self.classifiers["upper_pml"]].min()
         # Impedance match and scale by the time step.
         scale_factor = 1 / self.relative_permittivity[1::2,1::2]
         scale_factor *= self.courant_number * (
             self.spatial_resolution / self.free_impedance
         )
         prefactors = np.zeros(self.Hz_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(prefactors.shape[1]):
-                if lower_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -self.magnetic_loss[::-1][j] * scale_factor[i,j]
-                    )
-                elif upper_pml[i,j]:
-                    prefactors[i,j] = np.exp(
-                        -self.magnetic_loss[j-upper_pml_edge] * scale_factor[i,j]
-                    )
-                else:
-                    prefactors[i,j] = 1
+        for i, j in zip(self.Hz_mesh[0].flat, self.Hz_mesh[1].flat):
+            if self.classifiers["lower_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -self.magnetic_loss[::-1][j] * scale_factor[i,j]
+                )
+            elif self.classifiers["upper_pml"][i,j]:
+                prefactors[i,j] = np.exp(
+                    -self.magnetic_loss[j-upper_pml_edge] * scale_factor[i,j]
+                )
+            else:
+                prefactors[i,j] = 1
         return prefactors
 
 
     @cached_property
     def curlHx_prefac(self):
         # Ex has x-offset, y-aligned. Modified in upper/lower PMLs.
-        upper_pml = self.classifiers["upper_pml"][:-1,:]
-        lower_pml = self.classifiers["lower_pml"][:-1,:]
-        upper_pml_edge = self.Ex_mesh[1,upper_pml].min()
+        upper_pml_edge = self.mesh[1,self.classifiers["upper_pml"]].min()
         conductivity = self.pml_conductivity[::2]  # At cell edges.
         prefactors = np.zeros(self.Ex_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(1, prefactors.shape[1] - 1):
-                if lower_pml[i,j+1]:
-                    prefactors[i,j] = (1 - self.Ex_prefac[i,j]) / (
-                        conductivity[::-1][j] * self.spatial_resolution
-                    )
-                elif upper_pml[i,j-1]:
-                    prefactors[i,j] = (1 - self.Ex_prefac[i,j]) / (
-                        conductivity[j-upper_pml_edge] * self.spatial_resolution
-                    )
-                else:
-                    prefactors[i,j] = self.courant_number * self.free_impedance / (
-                        self.relative_permittivity[1::2,::2][i,j]
-                    )
+        for i, j in zip(self.Ex_mesh[0].flat, self.Ex_mesh[1].flat):
+            if j in (0, self.mesh.shape[2] - 1):
+                continue
+            if self.classifiers["lower_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Ex_prefac[i,j]) / (
+                    conductivity[::-1][j] * self.spatial_resolution
+                )
+            elif self.classifiers["upper_pml"][i,j-1]:
+                prefactors[i,j] = (1 - self.Ex_prefac[i,j]) / (
+                    conductivity[j-upper_pml_edge-1] * self.spatial_resolution
+                )
+            else:
+                prefactors[i,j] = self.courant_number * self.free_impedance / (
+                    self.relative_permittivity[1::2,::2][i,j]
+                )
         return prefactors
 
 
     @cached_property
     def curlHy_prefac(self):
         # Ey has x-aligned, y-offset. Modified in left/right PMLs.
-        left_pml = self.classifiers["left_pml"][:,:-1]
-        right_pml = self.classifiers["right_pml"][:,:-1]
-        right_pml_edge = self.Ey_mesh[0,right_pml].min()
+        right_pml_edge = self.mesh[0,self.classifiers["right_pml"]].min()
         conductivity = self.pml_conductivity[::2]  # At cell edges.
         prefactors = np.zeros(self.Ey_mesh[0].shape, dtype=np.float)
-        for i in range(1, prefactors.shape[0] - 1):
-            for j in range(prefactors.shape[1]):
-                if left_pml[i+1,j]:
-                    prefactors[i,j] = (1 - self.Ey_prefac[i,j]) / (
-                        conductivity[::-1][i] * self.spatial_resolution
-                    )
-                elif right_pml[i-1,j]:
-                    prefactors[i,j] = (1 - self.Ey_prefac[i,j]) / (
-                        conductivity[i-right_pml_edge] * self.spatial_resolution
-                    )
-                else:
-                    prefactors[i,j] = self.courant_number * self.free_impedance / (
-                        self.relative_permittivity[::2,1::2][i,j]
-                    )
+        for i, j in zip(self.Ey_mesh[0].flat, self.Ey_mesh[1].flat):
+            if i in (0, self.mesh.shape[1] - 1):
+                continue
+            if self.classifiers["left_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Ey_prefac[i,j]) / (
+                    conductivity[::-1][i] * self.spatial_resolution
+                )
+            elif self.classifiers["right_pml"][i-1,j]:
+                prefactors[i,j] = (1 - self.Ey_prefac[i,j]) / (
+                    conductivity[i-right_pml_edge-1] * self.spatial_resolution
+                )
+            else:
+                prefactors[i,j] = self.courant_number * self.free_impedance / (
+                    self.relative_permittivity[::2,1::2][i,j]
+                )
         return prefactors
 
 
     @cached_property
     def curlEx_prefac(self):
         # Corresponds to Hzx updates. Modified in left/right PMLs.
-        left_pml = self.classifiers["left_pml"][:-1,:-1]
-        right_pml = self.classifiers["right_pml"][:-1,:-1]
-        right_pml_edge = self.Hz_mesh[0,right_pml].min()
+        right_pml_edge = self.mesh[0,self.classifiers["right_pml"]].min()
         # Impedance match in PML and scale by spatial resolution.
         scale_factor = self.relative_permittivity[1::2,1::2] / (
             self.relative_permeability * self.spatial_resolution
         )
         prefactors = np.zeros(self.Hz_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(prefactors.shape[1]):
-                if left_pml[i,j]:
-                    prefactors[i,j] = (1 - self.Hzx_prefac[i,j]) * (
-                        scale_factor[i,j] / self.magnetic_loss[::-1][i]
-                    )
-                elif right_pml[i,j]:
-                    prefactors[i,j] = (1 - self.Hzx_prefac[i,j]) * (
-                        scale_factor[i,j] / self.magnetic_loss[i-right_pml_edge]
-                    )
-                else:
-                    prefactors[i,j] = self.courant_number / (
-                        self.free_impedance * self.relative_permeability[i,j]
-                    )
+        for i, j in zip(self.Hz_mesh[0].flat, self.Hz_mesh[1].flat):
+            if self.classifiers["left_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Hzx_prefac[i,j]) * (
+                    scale_factor[i,j] / self.magnetic_loss[::-1][i]
+                )
+            elif self.classifiers["right_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Hzx_prefac[i,j]) * (
+                    scale_factor[i,j] / self.magnetic_loss[i-right_pml_edge]
+                )
+            else:
+                prefactors[i,j] = self.courant_number / (
+                    self.free_impedance * self.relative_permeability[i,j]
+                )
         return prefactors
 
 
     @cached_property
     def curlEy_prefac(self):
         # Corresponds to Hzy updates. Modified in upper/lower PMLs.
-        upper_pml = self.classifiers["upper_pml"][:-1,:-1]
-        lower_pml = self.classifiers["lower_pml"][:-1,:-1]
-        upper_pml_edge = self.Hz_mesh[1,upper_pml].min()
+        upper_pml_edge = self.mesh[1,self.classifiers["upper_pml"]].min()
         # Impedance match in the PML and scale by spatial resolution.
         scale_factor = self.relative_permittivity[1::2,1::2] / (
             self.relative_permeability * self.spatial_resolution
         )
         prefactors = np.zeros(self.Hz_mesh[0].shape, dtype=np.float)
-        for i in range(prefactors.shape[0]):
-            for j in range(prefactors.shape[1]):
-                if lower_pml[i,j]:
-                    prefactors[i,j] = (1 - self.Hzy_prefac[i,j]) * (
-                        scale_factor[i,j] / self.magnetic_loss[::-1][j]
-                    )
-                elif upper_pml[i,j]:
-                    prefactors[i,j] = (1 - self.Hzy_prefac[i,j]) * (
-                        scale_factor[i,j] / self.magnetic_loss[j-upper_pml_edge]
-                    )
-                else:
-                    prefactors[i,j] = self.courant_number / (
-                        self.free_impedance * self.relative_permeability[i,j]
-                    )
+        for i, j in zip(self.Hz_mesh[0].flat, self.Hz_mesh[1].flat):
+            if self.classifiers["lower_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Hzy_prefac[i,j]) * (
+                    scale_factor[i,j] / self.magnetic_loss[::-1][j]
+                )
+            elif self.classifiers["upper_pml"][i,j]:
+                prefactors[i,j] = (1 - self.Hzy_prefac[i,j]) * (
+                    scale_factor[i,j] / self.magnetic_loss[j-upper_pml_edge]
+                )
+            else:
+                prefactors[i,j] = self.courant_number / (
+                    self.free_impedance * self.relative_permeability[i,j]
+                )
         return prefactors
 
 
@@ -542,6 +526,7 @@ class Simulator:
                 x / self.pml_width
             ) ** self.pml_scaling_index
 
+        pml_conductivity[0] = self._simp_int(conductivity, 0, coordinates[1])
         for i in range(1, 2 * self.pml_width):
             pml_conductivity[i] = self._simp_int(
                 conductivity, coordinates[i-1], coordinates[i+1]
@@ -572,7 +557,7 @@ class Simulator:
         self.Ex = np.zeros((Ntimes,) + self.Ex_mesh[0].shape, dtype=float)
         self.Ey = np.zeros((Ntimes,) + self.Ey_mesh[0].shape, dtype=float)
         self.Hzx = np.zeros((Ntimes,) + self.Hz_mesh[0].shape, dtype=float)
-        self.Hzy = np.zeros((Ntimes,) + self.Hz_mesh[0].shape, dtype=float)
+        self.Hzy = self.Hzx.copy()
 
 
     def _advance_Hzx(self, Hzx, Ey_right, Ey_left, H_prefac, curlE_prefac):
@@ -588,7 +573,7 @@ class Simulator:
     def _advance_Hz(self, Hz, Ex_above, Ex_below, Ey_right, Ey_left, curlE_prefac):
         """Advance Hz at a point by one timestep."""
         curlE = Ey_right - Ey_left - (Ex_above - Ex_below)
-        return Hz + curlE_prefac * curlE
+        return Hz - curlE_prefac * curlE
 
 
     def _advance_Ex(self, Ex, Hz_above, Hz_below, curlH_prefac, E_prefac):
@@ -608,22 +593,12 @@ class Simulator:
 
 
     def advance_H(self, step):
-        for i in range(self.x_cells + 2 * self.pml_width + 1):
-            in_left_pml = self.classifiers["left_pml"][i,0]
-            in_right_pml = self.classifiers["right_pml"][i,0]
-            at_right_edge = self.classifiers["right_edge"][i,0]
+        for i in range(self.x_cells + 2 * self.pml_width):
             at_left_edge = self.classifiers["left_edge"][i,0]
-            for j in range(self.y_cells + 2 * self.pml_width + 1):
-                in_lower_pml = self.classifiers["lower_pml"][0,j]
-                in_upper_pml = self.classifiers["upper_pml"][0,j]
-                at_upper_edge = self.classifiers["upper_edge"][0,j]
+            for j in range(self.y_cells + 2 * self.pml_width):
                 at_lower_edge = self.classifiers["lower_edge"][0,j]
 
-                # There's nothing to do at these edges.
-                if at_upper_edge or at_right_edge:
-                    continue
-
-                # Advance the magnetic field. Just take the H-field to always be split.
+                # Advance the magnetic field.
                 dHzx = self._advance_Hzx(
                     self.Hzx[step-1,i,j],
                     self.Ey[step-1,i+1,j],
@@ -643,20 +618,10 @@ class Simulator:
 
 
     def advance_E(self, step):
-        for i in range(self.x_cells + 2 * self.pml_width + 1):
-            in_left_pml = self.classifiers["left_pml"][i,0]
-            in_right_pml = self.classifiers["right_pml"][i,0]
-            at_right_edge = self.classifiers["right_edge"][i,0]
+        for i in range(self.x_cells + 2 * self.pml_width):
             at_left_edge = self.classifiers["left_edge"][i,0]
-            for j in range(self.y_cells + 2 * self.pml_width + 1):
-                in_lower_pml = self.classifiers["lower_pml"][0,j]
-                in_upper_pml = self.classifiers["upper_pml"][0,j]
-                at_upper_edge = self.classifiers["upper_edge"][0,j]
+            for j in range(self.y_cells + 2 * self.pml_width):
                 at_lower_edge = self.classifiers["lower_edge"][0,j]
-
-                # There's nothing to do at these edges.
-                if at_upper_edge or at_right_edge:
-                    continue
 
                 # Advance the electric field.
                 # If we're at the lower edge, we can't calculate the curl for Ex.
@@ -689,7 +654,7 @@ class Simulator:
 
 
     def simulate(
-        self, Ntimes=500, source_func="ricker", source_loc=None, source_params=None,
+        self, Ntimes=500, source_func=None, source_loc=None, source_params=None,
     ):
         """Run the FDTD simulation.
 
@@ -699,15 +664,15 @@ class Simulator:
             Number of time steps in simulation.
         source_func: callable or str
             Function for applying a source term. Must have signature:
-                source_func(time, dt, **source_params)
-            Must return Ex, Ey, Hz. Currently only supports time-dependent source.
+                source_func(step, **source_params)
+            Must return Hz. Currently only supports time-dependent source.
         source_loc: tuple of slice parameters
             Specifies the location of the source.
         source_params: dict
             Parameters to supply source_func
         """
         if any(param is None for param in (source_func, source_loc)):
-            print("No source provided. Returning.")
+            print("Insufficient source information provided. Returning.")
             return
         source_params = source_params or {}
         self._initialize_fields(Ntimes)
@@ -744,6 +709,7 @@ class Simulator:
         self.info["source_type"] = source_type
         self.info["source_inds"] = source_inds
         self.info["source_pos"] = source_inds * self.spatial_resolution
+        self.info["source_params"] = source_params
 
 
     def write(self, save_path):
@@ -766,3 +732,26 @@ class Simulator:
             Hzy=self.Hzy,
             **self.info
         )
+
+
+    def plot_fields(self, step):
+        """Plotting convenience function. Mainly for debugging."""
+        import matplotlib.pyplot as plt
+        fig, axes = plt.subplots(1, 3, figsize=(15,10), dpi=150)
+        axes[0].set_title("$E_x$")
+        axes[1].set_title("$E_y$")
+        axes[2].set_title("$H_z$")
+        for i, field in enumerate(("Ex", "Ey", "Hz")):
+            if field == "Hz":
+                field = self.Hzx[step].T + self.Hzy[step].T
+            else:
+                field = getattr(self, field)[step].T
+            vmin, vmax = -1, 1
+            norm = plt.cm.colors.Normalize(vmin=vmin, vmax=vmax)
+            cmap = plt.cm.viridis
+            smap = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+            ax = axes[i]
+            ax.imshow(field / field.max(), aspect='auto', norm=norm, cmap=cmap)
+            fig.colorbar(smap, ax=ax)
+        return fig
+
