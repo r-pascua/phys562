@@ -310,19 +310,19 @@ class Simulator:
     def Ex_coords(self):
         Ex_coords = self.Ex_mesh.copy().astype(float)
         Ex_coords[0] += 0.5
-        return Ex_coords
+        return Ex_coords * self.spatial_resolution
 
 
     @cached_property
     def Ey_coords(self):
         Ey_coords = self.Ey_mesh.copy().astype(float)
         Ey_coords[1] += 0.5
-        return Ey_coords
+        return Ey_coords * self.spatial_resolution
 
 
     @cached_property
     def Hz_coords(self):
-        return self.Hz_mesh.copy().astype(float) + 0.5
+        return (self.Hz_mesh.copy().astype(float) + 0.5) * self.spatial_resolution
 
 
     @cached_property
