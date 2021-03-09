@@ -93,6 +93,8 @@ class Simulator:
         magnetic_loss: ndarray of float
             Magnetic loss in the PML corresponding to free-space in the non-absorbing
             region.
+        contains_pec: bool
+            Denotes whether a perfect electric conductor is included in the simulation.
         prefactors: float or ndarray of float
             Various prefactors are calculated for each region once per class instance.
             These prefactors are cached to enhance performance. The prefactors that
@@ -155,6 +157,7 @@ class Simulator:
         self.Hzy = self.Hzx.copy()
 
         # Information dictionary for when simulation is performed.
+        self.contains_pec = False
         self.info = {}
 
 
@@ -176,6 +179,105 @@ class Simulator:
         except ValueError as err:
             self.relative_permeability = old_permeability
             raise err
+
+
+    def add_pec(self, uses_physical_coordinates=False, geometry=None, **pec_info):
+        """Add a PEC to the simulation.
+
+        Parameters
+        ----------
+        uses_physical_coordinates: bool, optional
+            Whether provided parameters are specified using indices or physical
+            coordinates.
+        geometry: str, optional
+            Geometry to use when not specifying x- and y-coordinates
+            directly. Supported options are currently rectangular and
+            spherical.
+        pec_info
+            Additional parameters required in order to define the PEC
+            boundary. See relevant ``_add_{model}_pec`` methods for
+            details on required extra parameters.
+        """
+        if geometry is None:
+            self._add_general_pec(uses_physical_coordinates, **pec_info)
+        elif geometry == "rectangular":
+            self._add_rectangular_pec(uses_physical_coordinates, **pec_info)
+        elif geometry == "spherical":
+            self._add_spherical_pec(uses_physical_coordinates, **pec_info)
+        else:
+            raise NotImplementedError(f"Geometry {geometry} not supported.")
+
+
+    def _add_general_pec(
+        self, uses_physical_coordinates=False, x_coords=None, y_coords=None
+    ):
+        if "x_coords" is None or "y_coords" is None:
+            raise ValueError(
+                "x_coords and y_coords parameters must be provided if"
+                "specifying a general PEC."
+            )
+        if len(list(x_coords)) != len(list(y_coords)):
+            raise ValueError("x_coords and y_coords must be the same length")
+
+        # We'll keep track of this by noting which Hz nodes are in the PEC.
+        # Though I'm not actually sure how to do this in general yet, so...
+        raise NotImplementedError
+        pec_boundary = np.zeros(self.Hz_mesh[0].shape, dtype=bool)
+        for x, y in zip(list(x_coords), list(y_coords)):
+            if not uses_physical_coordinates:
+                # Make new objects instead of overwriting the old ones.
+                x = x * self.spatial_resolution
+                y = y * self.spatial_resolution
+
+
+    def _add_rectangular_pec(
+        self, uses_physical_coordinates=False, box_corners=None
+    ):
+        if box_corners is None:
+            raise ValueError(
+                "Corners of the PEC need to be provided, formatted as"
+                "(x_left, x_right, y_bottom, y_top)"
+            )
+
+        x_left, x_right, y_bottom, y_top = box_corners
+        if not uses_physical_coordinates:
+            x_left *= self.spatial_resolution
+            x_right *= self.spatial_resolution
+            y_bottom *= self.spatial_resolution
+            y_top *= self.spatial_resolution
+        inside_pec = (
+            (self.Hz_coords[0] >= x_left) &
+            (self.Hz_coords[0] <= x_right) &
+            (self.Hz_coords[1] >= y_bottom) &
+            (self.Hz_coords[1] <= y_top)
+        )
+        self._add_pec(inside_pec)
+
+
+    def _add_spherical_pec(
+        self, uses_physical_coordinates=False, center=None, radius=None,
+    ):
+        if center is None or radius is None:
+            raise ValueError("Both a center and radius must be specified.")
+        if len(center) != 2:
+            raise ValueError("center must be length-2.")
+        if not uses_physical_coordinates:
+            x0, y0 = np.array(center) * self.spatial_resolution
+            radius *= self.spatial_resolution
+        else:
+            x0, y0 = center
+        inside_pec = np.sqrt(
+            (self.Hz_coords[0] - x0) ** 2 + (self.Hz_coords[1] - y0) ** 2
+        ) <= radius
+        self._add_pec(inside_pec)
+
+
+    def _add_pec(self, pec):
+        if "inside_pec" not in self.classifiers:
+            self.classifiers["inside_pec"] = inside_pec
+            self.contains_pec = True
+        else:
+            self.classifiers["inside_pec"] |= inside_pec
 
 
     @cached_property
@@ -590,6 +692,8 @@ class Simulator:
         self.advance_H(step)
         self.apply_source(source_func, source_loc, step, **source_params)
         self.advance_E(step)
+        if self.contains_pec:
+            self.enforce_pec(step)
 
 
     def advance_H(self, step):
@@ -653,6 +757,15 @@ class Simulator:
         self.Ey[step][source_loc] += Ey
         self.Hzx[step][source_loc] += 0.5 * Hz
         self.Hzy[step][source_loc] += 0.5 * Hz
+
+
+    def enforce_pec(self, step):
+        # The electric fields neighboring each Hz node inside the PEC vanish.
+        for i in range(self.mesh.shape[1] - 1):
+            for j in range(self.mesh.shape[2] - 1):
+                if self.classifiers["inside_pec"][i,j]:
+                    self.Ex[step,i,j:j+2] = 0
+                    self.Ey[step,i:i+2,j] = 0
 
 
     def simulate(
