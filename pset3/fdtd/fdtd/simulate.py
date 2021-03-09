@@ -204,6 +204,8 @@ class Simulator:
             self._add_rectangular_pec(uses_physical_coordinates, **pec_info)
         elif geometry == "spherical":
             self._add_spherical_pec(uses_physical_coordinates, **pec_info)
+        elif geometry == "curve":
+            self._add_pec_curve(uses_physical_coordinates, **pec_info)
         else:
             raise NotImplementedError(f"Geometry {geometry} not supported.")
 
@@ -270,6 +272,31 @@ class Simulator:
             (self.Hz_coords[0] - x0) ** 2 + (self.Hz_coords[1] - y0) ** 2
         ) <= radius
         self._add_pec(inside_pec)
+
+
+    def _add_pec_curve(
+        self, uses_physical_coordinates=False, x_coords=None, y_coords=None,
+    ):
+        if x_coords is None or y_coords is None:
+            raise ValueError("x_coords and y_coords must be provided.")
+        x_coords = list(x_coords)
+        y_coords = list(y_coords)
+        if len(x_coords) != len(y_coords):
+            if len(x_coords) == 1:
+                x_coords *= len(y_coords)
+            elif len(y_coords) == 1:
+                y_coords *= len(x_coords)
+            else:
+                raise ValueError("x_coords and y_coords must be same length.")
+        pec_boundary = np.zeros(self.Hz_mesh[0].shape, dtype=bool)
+        for x, y in zip(x_coords, y_coords):
+            if not uses_physical_coordinates:
+                x *= self.spatial_resolution
+                y *= self.spatial_resolution
+            pec_boundary[np.argmin(
+                (self.Hz_coords[0] - x) ** 2 + (self.Hz_coords[1] - y) ** 2
+            ).flat] = True
+        self._add_pec(pec_boundary)
 
 
     def _add_pec(self, pec):
