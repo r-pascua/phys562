@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.split(os.getcwd())[0])  # Make fdtd package discoverable
 import numpy as np
 from fdtd import Simulator, DATA_PATH
 
