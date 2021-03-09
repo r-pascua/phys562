@@ -725,12 +725,11 @@ class Simulator:
         source_inds = self.mesh[(slice(None),) + source_loc]
         self.info["source_type"] = source_type
         self.info["source_inds"] = source_inds
-        self.info["source_pos"] = source_inds * self.spatial_res
+        self.info["source_pos"] = source_inds * self.spatial_resolution
 
 
     def write(self, save_path):
         """Write simulation results to disk."""
-        Hz = self.Hzx + self.Hzy
         np.savez(
             save_path,
             x_cells=self.x_cells,
@@ -743,8 +742,9 @@ class Simulator:
             relative_permeability=self.relative_permeability,
             pml_conductivity_scale=self.pml_conductivity_scale,
             pml_scaling_index=self.pml_scaling_index,
-            Ex=Ex,
-            Ey=Ey,
-            Hz=Hz,
+            Ex=self.Ex,
+            Ey=self.Ey,
+            Hzx=self.Hzx,
+            Hzy=self.Hzy,
             **self.info
         )
