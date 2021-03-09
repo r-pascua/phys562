@@ -31,9 +31,8 @@ def ricker_wavelet(
         Response of the Ricker wavelet at the provided time step according
         to the provided parameters.
     """
-    prefactor = 2 * np.pi * courant_number ** 2 / points_per_wavelength ** 2
-    return (1 - prefactor * step ** 2) * np.exp(
-        -0.5 * prefactor * (step - offset) ** 2
-    )
+    prefactor = np.sqrt(2 * np.pi) * courant_number / points_per_wavelength
+    x = prefactor * (step - offset)
+    return (1 - x ** 2) * np.exp(-0.5 * x ** 2)
 
 SOURCES["ricker"] = ricker_wavelet
