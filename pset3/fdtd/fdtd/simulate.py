@@ -274,10 +274,10 @@ class Simulator:
 
     def _add_pec(self, pec):
         if "inside_pec" not in self.classifiers:
-            self.classifiers["inside_pec"] = inside_pec
+            self.classifiers["inside_pec"] = pec
             self.contains_pec = True
         else:
-            self.classifiers["inside_pec"] |= inside_pec
+            self.classifiers["inside_pec"] |= pec
 
 
     @cached_property
@@ -322,7 +322,7 @@ class Simulator:
 
     @cached_property
     def Hz_coords(self):
-        return self.Hzx_mesh.copy().astype(float) + 0.5
+        return self.Hz_mesh.copy().astype(float) + 0.5
 
 
     @cached_property
