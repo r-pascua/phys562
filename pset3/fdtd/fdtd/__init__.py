@@ -1,2 +1,2 @@
-from . import simulate
 from . import sources
+from .simulate import Simulator
